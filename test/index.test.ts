@@ -546,3 +546,18 @@ describe("isJSONSerializable", () => {
     expect(isJSONSerializable(new URLSearchParams())).toBe(false);
   });
 });
+
+describe("withQuery", () => {
+  it("preserves URL hash fragment when adding query parameters", async () => {
+    const { withQuery } = await import("../src/utils.url.ts");
+    expect(withQuery("/path#section", { foo: "bar" })).toBe(
+      "/path?foo=bar#section"
+    );
+    expect(withQuery("/path?a=1#section", { b: "2" })).toBe(
+      "/path?a=1&b=2#section"
+    );
+    expect(withQuery("http://example.com/page#top", { id: "99" })).toBe(
+      "http://example.com/page?id=99#top"
+    );
+  });
+});

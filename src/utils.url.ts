@@ -66,7 +66,11 @@ export function withQuery(input: string, query?: QueryObject): string {
     return input;
   }
 
-  const searchIndex = input.indexOf("?");
+  const hashIndex = input.indexOf("#");
+  const hash = hashIndex === -1 ? "" : input.slice(hashIndex);
+  const targetInput = hashIndex === -1 ? input : input.slice(0, hashIndex);
+
+  const searchIndex = targetInput.indexOf("?");
 
   if (searchIndex === -1) {
     const normalizedQuery = Object.entries(query)
@@ -80,11 +84,14 @@ export function withQuery(input: string, query?: QueryObject): string {
       });
     const searchParams = new URLSearchParams(normalizedQuery);
     const queryString = searchParams.toString();
-    return queryString ? `${input}?${queryString}` : input;
+    const resultBase = queryString
+      ? `${targetInput}?${queryString}`
+      : targetInput;
+    return resultBase + hash;
   }
 
-  const searchParams = new URLSearchParams(input.slice(searchIndex + 1));
-  const base = input.slice(0, searchIndex);
+  const searchParams = new URLSearchParams(targetInput.slice(searchIndex + 1));
+  const base = targetInput.slice(0, searchIndex);
 
   for (const [key, value] of Object.entries(query)) {
     if (value === undefined) {
@@ -99,7 +106,8 @@ export function withQuery(input: string, query?: QueryObject): string {
   }
 
   const queryString = searchParams.toString();
-  return queryString ? `${base}?${queryString}` : base;
+  const resultBase = queryString ? `${base}?${queryString}` : base;
+  return resultBase + hash;
 }
 
 function normalizeQueryValue(value: QueryValue): string {
