@@ -561,3 +561,16 @@ describe("withQuery", () => {
     );
   });
 });
+
+describe("detectResponseType", () => {
+  it("detects response type accurately with whitespace, custom JSON, and XML MIME types", async () => {
+    const { detectResponseType } = await import("../src/utils.ts");
+    expect(detectResponseType("  application/json; charset=utf-8  ")).toBe("json");
+    expect(detectResponseType("application/problem+json")).toBe("json");
+    expect(detectResponseType("image/svg+xml")).toBe("text");
+    expect(detectResponseType("application/xml")).toBe("text");
+    expect(detectResponseType("text/plain")).toBe("text");
+    expect(detectResponseType("text/event-stream")).toBe("stream");
+    expect(detectResponseType("application/octet-stream")).toBe("blob");
+  });
+});

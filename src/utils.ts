@@ -51,6 +51,7 @@ export function isJSONSerializable(value: any): boolean {
 
 const textTypes = new Set([
   "image/svg",
+  "image/svg+xml",
   "application/xml",
   "application/xhtml",
   "application/html",
@@ -65,7 +66,7 @@ export function detectResponseType(_contentType = ""): ResponseType {
   }
 
   // Value might look like: `application/json; charset=utf-8`
-  const contentType = _contentType.split(";").shift() || "";
+  const contentType = (_contentType.split(";").shift() || "").trim().toLowerCase();
 
   if (JSON_RE.test(contentType)) {
     return "json";
@@ -82,7 +83,11 @@ export function detectResponseType(_contentType = ""): ResponseType {
     return "stream";
   }
 
-  if (textTypes.has(contentType) || contentType.startsWith("text/")) {
+  if (
+    textTypes.has(contentType) ||
+    contentType.startsWith("text/") ||
+    /\+xml$/i.test(contentType)
+  ) {
     return "text";
   }
 
