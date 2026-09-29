@@ -66,7 +66,9 @@ export function detectResponseType(_contentType = ""): ResponseType {
   }
 
   // Value might look like: `application/json; charset=utf-8`
-  const contentType = (_contentType.split(";").shift() || "").trim().toLowerCase();
+  const contentType = (_contentType.split(";").shift() || "")
+    .trim()
+    .toLowerCase();
 
   if (JSON_RE.test(contentType)) {
     return "json";
@@ -104,9 +106,14 @@ export function resolveFetchOptions<
   Headers: typeof globalThis.Headers
 ): ResolvedFetchOptions<R, T> {
   // Merge headers
+  const reqHeaders =
+    typeof request === "object" && request !== null && "headers" in request
+      ? (request as Request).headers
+      : undefined;
+
   const headers = mergeHeaders(
-    input?.headers ?? (request as Request)?.headers,
-    defaults?.headers,
+    input?.headers,
+    mergeHeaders(reqHeaders, defaults?.headers, Headers),
     Headers
   );
 

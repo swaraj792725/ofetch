@@ -395,6 +395,17 @@ describe("ofetch", () => {
         headers: { foo: "2", bar: "3" },
       }).then((r) => r.headers)
     ).toMatchObject({ foo: "2", bar: "3" });
+
+    expect(
+      await $fetch(
+        new Request(getURL("echo"), {
+          headers: { foo: "1", reqheader: "kept" },
+        }),
+        {
+          headers: { foo: "2", bar: "3" },
+        }
+      ).then((r) => r.headers)
+    ).toMatchObject({ foo: "2", bar: "3", reqheader: "kept" });
   });
 
   it("hook errors", async () => {
@@ -565,7 +576,9 @@ describe("withQuery", () => {
 describe("detectResponseType", () => {
   it("detects response type accurately with whitespace, custom JSON, and XML MIME types", async () => {
     const { detectResponseType } = await import("../src/utils.ts");
-    expect(detectResponseType("  application/json; charset=utf-8  ")).toBe("json");
+    expect(detectResponseType("  application/json; charset=utf-8  ")).toBe(
+      "json"
+    );
     expect(detectResponseType("application/problem+json")).toBe("json");
     expect(detectResponseType("image/svg+xml")).toBe("text");
     expect(detectResponseType("application/xml")).toBe("text");
