@@ -10,6 +10,7 @@ import {
 import { Readable } from "node:stream";
 import { H3, HTTPError, readBody, serve } from "h3";
 import { $fetch } from "../src/index.ts";
+import { isJSONSerializable } from "../src/utils.ts";
 
 describe("ofetch", () => {
   let listener: ReturnType<typeof serve>;
@@ -156,6 +157,19 @@ describe("ofetch", () => {
       expect(headers).to.include({ "x-header": "1" });
       expect(headers).to.include({ accept: "application/json" });
     }
+
+    const { body: bodyBufferProp } = await $fetch(getURL("post"), {
+      method: "POST",
+      body: { buffer: "test", num: 42 },
+    });
+    expect(bodyBufferProp).to.deep.eq({ buffer: "test", num: 42 });
+
+    const nullProtoObj = Object.assign(Object.create(null), { foo: "bar" });
+    const { body: bodyNullProto } = await $fetch(getURL("post"), {
+      method: "POST",
+      body: nullProtoObj,
+    });
+    expect(bodyNullProto).to.deep.eq({ foo: "bar" });
   });
 
   it("does not stringify body when content type != application/json", async () => {
@@ -522,6 +536,56 @@ describe("ofetch", () => {
       headers: expect.any(Headers),
       signal: expect.any(AbortSignal),
       timeout: 10_000,
+    });
+  });
+
+  describe("isJSONSerializable", () => {
+    it("returns true for primitives and null", () => {
+      expect(isJSONSerializable(null)).toBe(true); // eslint-disable-line unicorn/no-null
+      expect(isJSONSerializable("string")).toBe(true);
+      expect(isJSONSerializable(123)).toBe(true);
+      expect(isJSONSerializable(true)).toBe(true);
+      expect(isJSONSerializable(false)).toBe(true);
+    });
+
+    it("returns false for undefined, symbols, functions, bigints", () => {
+      expect(isJSONSerializable(undefined)).toBe(false);
+      expect(isJSONSerializable(Symbol("test"))).toBe(false);
+      expect(isJSONSerializable(() => {})).toBe(false);
+      expect(isJSONSerializable(10n)).toBe(false);
+    });
+
+    it("returns true for arrays and plain objects", () => {
+      expect(isJSONSerializable([])).toBe(true);
+      expect(isJSONSerializable([1, 2, 3])).toBe(true);
+      expect(isJSONSerializable({})).toBe(true);
+      expect(isJSONSerializable({ a: 1 })).toBe(true);
+      expect(isJSONSerializable({ buffer: "not a binary buffer" })).toBe(true);
+      expect(isJSONSerializable(Object.create(null))).toBe(true);
+    });
+
+    it("returns true for objects with toJSON method", () => {
+      expect(isJSONSerializable(new Date())).toBe(true);
+      expect(isJSONSerializable({ toJSON: () => ({ custom: true }) })).toBe(
+        true
+      );
+    });
+
+    it("returns false for binary buffers and typed arrays", () => {
+      expect(isJSONSerializable(Buffer.from("test"))).toBe(false);
+      expect(isJSONSerializable(new Uint8Array([1, 2]))).toBe(false);
+      expect(isJSONSerializable(new ArrayBuffer(8))).toBe(false);
+      expect(isJSONSerializable(new DataView(new ArrayBuffer(8)))).toBe(false);
+    });
+
+    it("returns false for FormData and URLSearchParams", () => {
+      expect(isJSONSerializable(new FormData())).toBe(false);
+      expect(isJSONSerializable(new URLSearchParams())).toBe(false);
+    });
+
+    it("returns false for non-plain classes without toJSON", () => {
+      class CustomClass {}
+      expect(isJSONSerializable(new CustomClass())).toBe(false);
     });
   });
 });
