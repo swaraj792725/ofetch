@@ -14,6 +14,19 @@ export function isPayloadMethod(method = "GET"): boolean {
   return payloadMethods.has(method.toUpperCase());
 }
 
+export function getEffectiveMethod(
+  request?: FetchRequest,
+  options?: FetchOptions<any, any>
+): string {
+  return (
+    options?.method ||
+    (typeof request === "object" && request !== null && "method" in request
+      ? (request as Request).method
+      : undefined) ||
+    "GET"
+  ).toUpperCase();
+}
+
 export function isJSONSerializable(value: any): boolean {
   if (value === undefined) {
     return false;

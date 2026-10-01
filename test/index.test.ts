@@ -9,7 +9,7 @@ import {
 } from "vitest";
 import { Readable } from "node:stream";
 import { H3, HTTPError, readBody, serve } from "h3";
-import { $fetch } from "../src/index.ts";
+import { $fetch, createFetch } from "../src/index.ts";
 
 describe("ofetch", () => {
   let listener: ReturnType<typeof serve>;
@@ -523,5 +523,123 @@ describe("ofetch", () => {
       signal: expect.any(AbortSignal),
       timeout: 10_000,
     });
+  });
+
+  it("does not retry prebuilt write Requests by default", async () => {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
+      let calls = 0;
+      const customFetch = createFetch({
+        fetch: async () => {
+          calls++;
+          return new Response("unavailable", { status: 503 });
+        },
+      });
+      await customFetch(new Request("https://example.test/", { method })).catch(
+        () => {}
+      );
+      expect(calls).toBe(1);
+    }
+  });
+
+  it("retries prebuilt GET Requests by default", async () => {
+    let calls = 0;
+    const customFetch = createFetch({
+      fetch: async () => {
+        calls++;
+        return new Response("unavailable", { status: 503 });
+      },
+    });
+    await customFetch(
+      new Request("https://example.test/", { method: "GET" })
+    ).catch(() => {});
+    expect(calls).toBe(2);
+  });
+
+  it("retries prebuilt write Requests when retry option is explicitly configured", async () => {
+    let calls = 0;
+    const customFetch = createFetch({
+      fetch: async () => {
+        calls++;
+        return new Response("unavailable", { status: 503 });
+      },
+    });
+    await customFetch(
+      new Request("https://example.test/", { method: "POST" }),
+      {
+        retry: 2,
+      }
+    ).catch(() => {});
+    expect(calls).toBe(3);
+  });
+
+  it("allows options.method to override Request method for retry", async () => {
+    let calls = 0;
+    const customFetch = createFetch({
+      fetch: async () => {
+        calls++;
+        return new Response("unavailable", { status: 503 });
+      },
+    });
+    await customFetch(
+      new Request("https://example.test/", { method: "POST" }),
+      {
+        method: "GET",
+      }
+    ).catch(() => {});
+    expect(calls).toBe(2);
+  });
+
+  it("serializes JSON body for prebuilt write Request", async () => {
+    let capturedInit: RequestInit | undefined;
+    const customFetch = createFetch({
+      fetch: async (_req, init) => {
+        capturedInit = init;
+        return new Response(JSON.stringify({ ok: true }), {
+          headers: { "content-type": "application/json" },
+        });
+      },
+    });
+    await customFetch(
+      new Request("https://example.test/", { method: "POST" }),
+      {
+        body: { foo: "bar" },
+      }
+    );
+    expect(capturedInit?.body).toBe(JSON.stringify({ foo: "bar" }));
+    expect((capturedInit?.headers as Headers).get("content-type")).toBe(
+      "application/json"
+    );
+  });
+
+  it("ignores response body for prebuilt HEAD Request", async () => {
+    const customFetch = createFetch({
+      fetch: async () => {
+        return new Response("body should be ignored", {
+          headers: { "content-type": "text/plain" },
+        });
+      },
+    });
+    const res = await customFetch.raw(
+      new Request("https://example.test/", { method: "HEAD" })
+    );
+    expect(res._data).toBeUndefined();
+  });
+
+  it("respects onRequest hook changing the Request method", async () => {
+    let calls = 0;
+    const customFetch = createFetch({
+      fetch: async () => {
+        calls++;
+        return new Response("unavailable", { status: 503 });
+      },
+    });
+    await customFetch(new Request("https://example.test/", { method: "GET" }), {
+      onRequest(context) {
+        context.request = new Request("https://example.test/", {
+          method: "POST",
+        });
+      },
+    }).catch(() => {});
+    expect(calls).toBe(1);
   });
 });
