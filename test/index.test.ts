@@ -10,6 +10,7 @@ import {
 import { Readable } from "node:stream";
 import { H3, HTTPError, readBody, serve } from "h3";
 import { $fetch } from "../src/index.ts";
+import { detectResponseType } from "../src/utils.ts";
 
 describe("ofetch", () => {
   let listener: ReturnType<typeof serve>;
@@ -46,6 +47,21 @@ describe("ofetch", () => {
       .all("/binary", (event) => {
         event.res.headers.set("Content-Type", "application/octet-stream");
         return new Blob(["binary"]);
+      })
+      .all("/xml", (event) => {
+        event.res.headers.set("Content-Type", "application/xml");
+        return "<root>xml</root>";
+      })
+      .all("/rss", (event) => {
+        event.res.headers.set(
+          "Content-Type",
+          "application/rss+xml; charset=utf-8"
+        );
+        return "<rss>feed</rss>";
+      })
+      .all("/svg", (event) => {
+        event.res.headers.set("Content-Type", "image/svg+xml");
+        return "<svg></svg>";
       })
       .all(
         "/403",
@@ -108,6 +124,38 @@ describe("ofetch", () => {
 
   it("returns a blob for binary content-type", async () => {
     expect(await $fetch(getURL("binary"))).to.be.instanceOf(Blob);
+  });
+
+  it("returns text for xml, rss, and svg content-types", async () => {
+    expect(await $fetch(getURL("xml"))).to.equal("<root>xml</root>");
+    expect(await $fetch(getURL("rss"))).to.equal("<rss>feed</rss>");
+    expect(await $fetch(getURL("svg"))).to.equal("<svg></svg>");
+  });
+
+  describe("detectResponseType", () => {
+    it("detects response types correctly", () => {
+      expect(detectResponseType()).toBe("json");
+      expect(detectResponseType("application/json")).toBe("json");
+      expect(detectResponseType("application/json; charset=utf-8")).toBe(
+        "json"
+      );
+      expect(detectResponseType("application/ld+json")).toBe("json");
+      expect(detectResponseType("text/plain")).toBe("text");
+      expect(detectResponseType("text/html; charset=UTF-8")).toBe("text");
+      expect(detectResponseType("text/event-stream")).toBe("stream");
+      expect(detectResponseType("application/xml")).toBe("text");
+      expect(detectResponseType("application/xml; charset=utf-8")).toBe("text");
+      expect(detectResponseType("application/rss+xml")).toBe("text");
+      expect(detectResponseType("application/atom+xml; charset=utf-8")).toBe(
+        "text"
+      );
+      expect(detectResponseType("application/xhtml+xml")).toBe("text");
+      expect(detectResponseType("image/svg+xml")).toBe("text");
+      expect(detectResponseType("image/svg")).toBe("text");
+      expect(detectResponseType("APPLICATION/RSS+XML")).toBe("text");
+      expect(detectResponseType("application/octet-stream")).toBe("blob");
+      expect(detectResponseType("image/png")).toBe("blob");
+    });
   });
 
   it("baseURL", async () => {
